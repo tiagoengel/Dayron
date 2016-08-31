@@ -58,22 +58,54 @@ defmodule Dayron.ModelTest do
 
   test "raises on protocol exception on url_for" do
     msg = ~r/the given module is not a Dayron.Model/
-    assert_raise Protocol.UndefinedError, msg, fn -> 
+    assert_raise Protocol.UndefinedError, msg, fn ->
       Model.url_for(MyInvalidModel)
     end
   end
 
   test "raises on protocol exception on from_json" do
     msg = ~r/the given module is not a Dayron.Model/
-    assert_raise Protocol.UndefinedError, msg, fn -> 
+    assert_raise Protocol.UndefinedError, msg, fn ->
       Model.from_json(MyInvalidModel, %{name: "Full Name"})
     end
   end
 
   test "raises on protocol exception on from_json_list" do
     msg = ~r/the given module is not a Dayron.Model/
-    assert_raise Protocol.UndefinedError, msg, fn -> 
+    assert_raise Protocol.UndefinedError, msg, fn ->
       Model.from_json_list(MyInvalidModel, [%{name: "Full Name"}])
     end
   end
+
+  # ========== Associations ===================
+  defmodule MyModelWithAssocs do
+    use Dayron.Model,
+      resource: "users",
+      has_many: [
+        comments: MyComments,
+        posts: Post
+      ]
+
+    defstruct name: "", age: 0
+  end
+
+  defmodule Comments do
+    use Dayron.Model,
+      resource: "comments",
+      belongs_to: [user: MyModelWithAssocs]
+
+    defstruct id: 0, text: ""
+  end
+
+  test "imitates the ecto __schema(:associations) function" do
+    assert [:comments, :posts] = MyModelWithAssocs.__schema__(:associations)
+    assert [:user] = Comments.__schema__(:associations)
+  end
+
+  test "imitates the ecto __schema__(:association) function" do
+    refute is_nil(MyModelWithAssocs.__schema__(:association, :comments))
+    refute is_nil(Comments.__schema__(:association, :user))
+    assert is_nil MyModelWithAssocs.__schema__(:association, :invalid)
+  end
+
 end

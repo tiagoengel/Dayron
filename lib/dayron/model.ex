@@ -74,6 +74,33 @@ defmodule Dayron.Model do
     quote bind_quoted: [opts: opts] do
       @resource opts[:resource]
 
+      ecto_model? = Module.defines?(__MODULE__, {:__schema__, 1}, :def)
+      unless ecto_model? do
+        has_many = opts[:has_many] || []
+        has_one = opts[:has_one] || []
+        belongs_to = opts[:belongs_to] || []
+        assoc_names = Enum.map((has_many ++ has_one ++ belongs_to), fn {key, module} -> key end)
+
+        def __schema__(:associations) do
+          unquote(assoc_names)
+        end
+
+        assocs =
+          Enum.map(has_many, &(Dayron.Model.create_assoc_reflection(:has_many, &1))) ++
+          Enum.map(has_one, &(Dayron.Model.create_assoc_reflection(:has_one, &1))) ++
+          Enum.map(belongs_to, &(Dayron.Model.create_assoc_reflection(:belongs_to, &1)))
+
+        quoted =
+          Enum.map(assocs, fn {name, refl} ->
+            quote do
+              def __schema__(:association, unquote(name)), do: unquote(refl)
+            end
+          end)
+
+        Module.eval_quoted(__MODULE__, [quoted])
+        def __schema__(:association, _), do: nil
+      end
+
       def __resource__ do
         case @resource do
           nil -> apply(__MODULE__, :__schema__, [:source])
@@ -116,5 +143,21 @@ defmodule Dayron.Model do
   """
   def from_json_list(module, data, opts \\ []) do
     Requestable.from_json_list(module, data, opts)
+  end
+
+  def create_assoc_reflection(:has_many, {name, module}) do
+    {name, module}
+  end
+
+  def create_assoc_reflection(:has_one, {name, module}) do
+    {name, module}
+  end
+
+  def create_assoc_reflection(:belongs_to, {name, module}) do
+    {name, module}
+  end
+
+  def create_assoc_reflection(type, _) do
+    raise "#{type} associations are not suported"
   end
 end
